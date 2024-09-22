@@ -1,0 +1,95 @@
+stages:
+  - test
+  - build
+  - deploy-preprod
+  - tests-preprod
+  - deploy-prod
+  - tests-prod
+
+run-tests:
+  stage: test
+  image: node:20-alpine3.18
+  before_script:
+    - yarn install
+  script:
+    - yarn lint
+    - yarn test
+
+build_image:
+  stage: build
+  image: docker:26.0.0-rc1-cli
+  # services:
+  #   - docker:26.0.0-rc1-dind
+  variables:
+    # DOCKER_TLS_CERTDIR: "/certs" 
+    IMAGE_NAME: localhost:5000/clo5-back
+    IMAGE_TAG: v4.0
+  script:
+    - docker build -t $IMAGE_NAME:$IMAGE_TAG .
+    - docker push $IMAGE_NAME:$IMAGE_TAG
+
+deploy-preprod:
+  before_script:
+    - apk update && apk add sshpass
+  variables:
+    USER: djella_m
+    PASSWORD: menad
+    HOST: 172.16.237.88
+    IMAGE_NAME: 172.16.237.45:5000/clo5-back
+    IMAGE_TAG: v4.0
+  stage: deploy-preprod
+  image: linuxserver/openssh-server
+  script:
+    - sshpass -p $PASSWORD scp -o StrictHostKeyChecking=no docker-compose.yml $USER@$HOST:/home/djella_m/docker-compose.yml
+    - sshpass -p $PASSWORD scp -o StrictHostKeyChecking=no quantum-motors-initial.sql $USER@$HOST:/home/djella_m/sql-scripts/
+    - sshpass -p $PASSWORD ssh -o StrictHostKeyChecking=no $USER@$HOST "
+        # sudo docker stop mysql-back clo5-back phpmyadmin-back || true &&
+        # sudo docker rm mysql-back clo5-back phpmyadmin-back || true &&
+        # sudo docker compose -f docker-compose.yml up -d"
+        sudo docker stack deploy -c docker-compose.yml clo5-back-stack"
+
+tests-preprod:
+  before_script:
+    - apk update && apk add sshpass
+  variables:
+    USER: djella_m
+    PASSWORD: menad
+    HOST: 172.16.237.88
+  stage: tests-preprod
+  image: linuxserver/openssh-server
+  script:
+    - sshpass -p $PASSWORD ssh -o StrictHostKeyChecking=no $USER@$HOST "
+        sudo docker exec -w /app clo5-back yarn test"
+
+deploy-prod:
+  before_script:
+    - apk update && apk add sshpass
+  variables:
+    USER: djella_m
+    PASSWORD: menad
+    HOST: 172.16.237.146
+    IMAGE_NAME: 172.16.237.45:5000/clo5-back
+    IMAGE_TAG: v4.0
+  stage: deploy-prod
+  image: linuxserver/openssh-server
+  script:
+    - sshpass -p $PASSWORD scp -o StrictHostKeyChecking=no docker-compose.yml $USER@$HOST:/home/$USER/docker-compose.yml
+    - sshpass -p $PASSWORD scp -o StrictHostKeyChecking=no quantum-motors-initial.sql $USER@$HOST:/home/$USER/quantum-motors-initial.sql
+    - sshpass -p $PASSWORD ssh -o StrictHostKeyChecking=no $USER@$HOST "
+        # sudo docker stop mysql-back clo5-back phpmyadmin-back || true &&
+        # sudo docker rm mysql-back clo5-back phpmyadmin-back || true &&
+        # sudo docker compose -f docker-compose.yml up -d"
+        sudo docker stack deploy -c docker-compose.yml clo5-back-stack"
+
+tests-prod:
+  before_script:
+    - apk update && apk add sshpass
+  variables:
+    USER: djella_m
+    PASSWORD: Salah
+    HOST: 172.16.237.146
+  stage: tests-prod
+  image: linuxserver/openssh-server
+  script:
+    - sshpass -p $PASSWORD ssh -o StrictHostKeyChecking=no $USER@$HOST "
+        sudo docker exec -w /app clo5-back yarn test"
