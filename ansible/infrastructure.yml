@@ -1,0 +1,99 @@
+- name: docker_install
+  hosts: all
+  become: yes
+  tasks:
+    - name: Update apt packages
+      apt:
+        update_cache: yes
+
+    - name: Install required packages
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - gnupg-agent
+        - software-properties-common
+      tags: [docker]
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/debian/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Update apt packages again
+      apt:
+        update_cache: yes
+
+    - name: Install Docker-ce
+      apt:
+        name: docker-ce
+        state: present
+      tags: [docker]
+
+    - name: Install Docker-ce-cli
+      apt:
+        name: docker-ce-cli
+        state: present
+      tags: [docker]
+
+    - name: Install Containerd.io
+      apt:
+        name: containerd.io
+        state: present
+      tags: [docker]
+
+- name: docker_swarm
+  hosts: swarm_manager
+  become: yes
+  tasks:
+    - name: Initialize Docker Swarm
+      block:
+        - name: Initialize Docker Swarm
+          shell: docker swarm init --advertise-addr {{ ansible_default_ipv4.address }}
+          args:
+            creates: /etc/docker/swarm_initialized
+          register: swarm_initialized
+          changed_when: false
+          tags: [docker, swarm]
+        - name: Save Docker Swarm initialized state
+          copy:
+            content: "Docker Swarm initialized"
+            dest: /etc/docker/swarm_initialized
+          when: swarm_initialized is changed
+          changed_when: false
+          tags: [docker, swarm]
+
+- name: join_swarm_workers
+  hosts: swarm_workers
+  become: yes
+  tasks:
+    - name: Join Docker Swarm as worker
+      shell: docker swarm join --token {{ hostvars['vm1']['swarm_initialized']['stdout_lines'][1].split()[1] }} {{ hostvars['vm1']['ansible_default_ipv4']['address'] }}:2377
+      when: hostvars['vm1']['swarm_initialized']['changed']
+      tags: [docker, swarm]
+
+- name: docker_registry
+  hosts: swarm_manager
+  become: yes
+  roles: 
+    - deploy_docker_registry
+
+- name: deploy_gitlab
+  hosts: swarm_manager
+  become: yes
+  roles:
+    - deploy_gitlab
+
+- name: deploy_gitlab_runner
+  hosts: swarm_manager
+  become: yes
+  roles:
+    - deploy_gitlab_runner

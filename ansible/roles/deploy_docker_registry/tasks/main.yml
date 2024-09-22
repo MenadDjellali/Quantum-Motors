@@ -1,0 +1,8 @@
+- name: Deploy Docker Registry
+  docker_container:
+    name: registry
+    image: registry:latest
+    state: started
+    ports:
+      - "5000:5000"
+  tags: [docker, registry]

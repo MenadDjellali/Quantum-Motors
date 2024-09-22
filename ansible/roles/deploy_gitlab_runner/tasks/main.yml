@@ -1,0 +1,30 @@
+---
+- name: Install GitLab Runner
+  command: docker run -d --name gitlab-runner1 --restart always \
+               -v /var/run/docker.sock:/var/run/docker.sock \
+               -v /srv/gitlab-runner/config1:/etc/gitlab-runner \
+               gitlab/gitlab-runner:latest
+
+- name: Register GitLab Runner 1
+  command: docker exec gitlab-runner1 gitlab-runner register \
+               --non-interactive \
+               --url "http://172.16.237.45:3333/" \
+               --registration-token "GR1348941dSiraMRUWmaWKy6UYwHT" \
+               --executor "docker" \
+               --docker-image "node:20-alpine3.18" \
+               --description "Docker Runner 1"
+
+- name: Install GitLab Runner
+  command: docker run -d --name gitlab-runner2 --restart always \
+               -v /var/run/docker.sock:/var/run/docker.sock \
+               -v /srv/gitlab-runner/config2:/etc/gitlab-runner \
+               gitlab/gitlab-runner:latest
+
+- name: Register GitLab Runner 2
+  command: docker exec gitlab-runner2 gitlab-runner register \
+               --non-interactive \
+               --url "http://172.16.237.45:3333/" \
+               --registration-token "GR1348941dSiraMRUWmaWKy6UYwHT" \
+               --executor "docker" \
+               --docker-image "node:20-alpine3.18" \
+               --description "Docker Runner 2"

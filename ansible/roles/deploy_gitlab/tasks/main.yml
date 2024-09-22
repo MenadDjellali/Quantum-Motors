@@ -1,0 +1,49 @@
+- name: Install GitLab dependencies
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - curl
+    - openssh-server
+    - ca-certificates
+    - postfix
+  tags: [gitlab]
+
+- name: Add GitLab repository GPG key
+  apt_key:
+    url: https://packages.gitlab.com/gpg.key
+    state: present
+  tags: [gitlab]
+
+- name: Add GitLab repository
+  apt_repository:
+    repo: "deb https://packages.gitlab.com/gitlab/gitlab-ce/{{ ansible_distribution|lower }}/ {{ ansible_distribution_release }} main"
+    state: present
+    filename: gitlab-ce
+  tags: [gitlab]
+
+- name: Install GitLab
+  apt:
+    name: gitlab-ce
+    state: present
+  tags: [gitlab]
+
+- name: Configure GitLab
+  shell: gitlab-ctl reconfigure
+  args:
+    creates: /etc/gitlab/gitlab.rb
+  tags: [gitlab]
+
+- name: Create GitLab administrative users
+  shell: "gitlab-rails runner \"User.create(name: '{{ item.username }}', email: '{{ item.email }}', password: '{{ item.password }}', admin: true)\""
+  loop:
+    - { username: "etna", email: "etna@example.com", password: "Test123@?" }
+    - { username: "rafina_d", email: "rafina_d@etna-alternance.net", password: "P@SSW0RD" }
+    - { username: "rinaz_a", email: "rinaz_a@etna-alternance.net", password: "P@SSW0RD" }
+  tags: [gitlab]
+
+- name: Configure GitLab Registry
+  shell: |
+    gitlab-rails runner "ApplicationSetting.create_from_defaults({ 'enabled_gitlab_features' => ['container_registry'] })"
+    gitlab-ctl reconfigure
+  tags: [gitlab]
